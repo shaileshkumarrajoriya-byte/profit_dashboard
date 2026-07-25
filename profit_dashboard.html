@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Profit Dashboard">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Profit & Loss Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #141414;
+    --ink-dark: #000000;
+    --paper: #FBF9F4;
+    --paper-line: #E7E1D3;
+    --brass: #C9A227;
+    --brass-deep: #8A6B14;
+    --brass-light: #F0D488;
+    --paid: #3F7859;
+    --paid-bg: #E4EFE8;
+    --due: #B23B31;
+    --due-bg: #F7E6E3;
+    --text: #2B2E33;
+    --muted: #6B7280;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: var(--paper);
+    background-image:
+      radial-gradient(ellipse 900px 460px at 50% -60px, rgba(201,162,39,0.10), transparent 65%),
+      repeating-linear-gradient(135deg, rgba(201,162,39,0.05) 0px, rgba(201,162,39,0.05) 1px, transparent 1px, transparent 26px),
+      repeating-linear-gradient(45deg, rgba(20,20,20,0.025) 0px, rgba(20,20,20,0.025) 1px, transparent 1px, transparent 26px);
+    background-attachment: fixed, fixed, fixed;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    padding-bottom: 40px;
+  }
+  header{
+    background: linear-gradient(160deg, #1c1c1c 0%, #0a0a0a 70%);
+    color: #fff;
+    padding: 22px 18px 24px;
+    border-bottom: 3px solid var(--brass);
+    border-radius: 0 0 26px 26px;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35);
+    position: relative;
+    overflow: hidden;
+  }
+  header::before{
+    content:'';
+    position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse 420px 220px at 15% -20%, rgba(201,162,39,0.22), transparent 60%),
+      radial-gradient(ellipse 420px 220px at 100% 0%, rgba(201,162,39,0.14), transparent 55%);
+    pointer-events:none;
+  }
+  header::after{
+    content:'';
+    position:absolute; left:0; right:0; bottom:0; height:1px;
+    background: linear-gradient(90deg, transparent, var(--brass-light), transparent);
+    opacity:0.6;
+  }
+  header h1{
+    font-family:'Bitter', serif;
+    font-weight:800;
+    font-size: 1.4rem;
+    margin: 0 0 4px;
+    text-align:center;
+    background: linear-gradient(180deg, #fff 0%, #E8D9B5 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header p{ margin:0; color: #D9CBA3; font-size: 0.82rem; text-align:center; }
+  #syncNote{ text-align:center; font-size:0.72rem; color:#B8A876; margin-top:6px; }
+
+  .wrap{ max-width: 1100px; margin: 0 auto; padding: 0 14px; }
+
+  .fee-toggle{ display:flex; gap:6px; margin: 18px 0 8px; }
+  .fee-toggle-btn{
+    flex:1; padding:9px 10px; border-radius:10px; background:#fff;
+    border:1px solid var(--paper-line); color:var(--muted);
+    font-size:0.85rem; font-weight:600; cursor:pointer;
+  }
+  .fee-toggle-btn.active{
+    background: linear-gradient(160deg, #262626, #0a0a0a);
+    color:#fff; border-color:var(--ink);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+
+  .profit-hero{
+    background:#fff; border:1px solid var(--paper-line); border-radius:18px;
+    padding:22px; text-align:center; margin: 14px 0;
+    box-shadow: 0 2px 4px rgba(20,20,20,0.05), 0 8px 20px rgba(20,20,20,0.06);
+    border-top: 3px solid var(--brass);
+  }
+  .profit-hero .lbl{ font-size:0.8rem; color:var(--muted); font-weight:600; letter-spacing:0.4px; text-transform:uppercase; }
+  .profit-hero .num{
+    font-family:'JetBrains Mono', monospace; font-weight:700;
+    font-size: 2.4rem; margin-top:6px;
+  }
+  .profit-hero .num.positive{ color: var(--paid); }
+  .profit-hero .num.negative{ color: var(--due); }
+  .profit-hero .sub{ font-size:0.78rem; color:var(--muted); margin-top:4px; }
+
+  .summary{ display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin: 14px 0; }
+  .card{
+    background:#fff; border:1px solid var(--paper-line); border-top: 2px solid var(--brass-light);
+    border-radius: 12px; padding: 13px 10px; text-align:center;
+    box-shadow: 0 2px 4px rgba(20,20,20,0.05), 0 8px 20px rgba(20,20,20,0.07);
+  }
+  .card .num{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size: 1.2rem; color: var(--ink); }
+  .card .lbl{ font-size: 0.68rem; color: var(--muted); margin-top:2px; }
+  .card.income .num{ color: var(--paid); }
+  .card.expense .num{ color: var(--due); }
+
+  .section-title{
+    font-family:'Bitter',serif; font-weight:700; font-size:1.05rem; color:var(--ink-dark);
+    margin: 22px 0 10px;
+  }
+
+  .vtable{ background:#fff; border:1px solid var(--paper-line); border-radius:14px; overflow:hidden; box-shadow: 0 2px 4px rgba(20,20,20,0.05), 0 8px 20px rgba(20,20,20,0.06); }
+  .vrow{ padding: 14px 16px; border-bottom:1px solid var(--paper-line); }
+  .vrow:last-child{ border-bottom:none; }
+  .vrow-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+  .vrow-name{ font-family:'Bitter',serif; font-weight:700; font-size:1rem; color:var(--ink-dark); }
+  .vrow-profit{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:1.05rem; }
+  .vrow-profit.positive{ color:var(--paid); }
+  .vrow-profit.negative{ color:var(--due); }
+  .vrow-breakdown{ display:flex; gap:14px; font-size:0.76rem; color:var(--muted); flex-wrap:wrap; }
+  .vrow-bar{ height:6px; border-radius:4px; background:var(--paper-line); margin-top:8px; overflow:hidden; display:flex; }
+  .vrow-bar .seg-income{ background: var(--paid); height:100%; }
+  .vrow-bar .seg-expense{ background: var(--due); height:100%; }
+
+  .btn{
+    background: linear-gradient(160deg, var(--brass) 0%, var(--brass-deep) 100%);
+    color:#fff; border:none; border-radius:10px; padding:11px 16px;
+    font-weight:600; font-size:0.9rem; cursor:pointer; width:100%;
+  }
+  .empty{ text-align:center; color:var(--muted); padding:30px 10px; font-size:0.9rem; }
+  .note-box{
+    background:#fff; border:1px solid var(--paper-line); border-left:3px solid var(--brass);
+    border-radius:10px; padding:12px 14px; font-size:0.8rem; color:var(--muted); margin: 16px 0;
+  }
+
+  @media (min-width: 820px){
+    .vrow-breakdown{ gap:24px; }
+  }
+
+  .toast{
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+    background: var(--ink-dark); color:#fff; padding:10px 18px;
+    border-radius:8px; font-size:0.85rem; opacity:0; pointer-events:none;
+    transition: opacity 0.25s;
+    z-index:50;
+  }
+  .toast.show{ opacity:1; }
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(20,40,66,0.5);
+    display:none; align-items:flex-end; justify-content:center; z-index:40;
+  }
+  .modal-bg.show{ display:flex; }
+  .modal{
+    background:#fff; width:100%; max-width:480px;
+    border-radius: 16px 16px 0 0;
+    padding:20px; max-height:85vh; overflow-y:auto;
+  }
+  .modal h3{ font-family:'Bitter',serif; margin-top:0; color:var(--ink-dark); }
+  .modal-actions{ display:flex; gap:10px; margin-top:16px; }
+  .modal-actions .btn{ flex:1; }
+  @media (min-width: 820px){
+    .modal-bg{ align-items:center; }
+    .modal{ border-radius:20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="position:relative;">
+    <div style="display:flex;gap:8px;position:absolute;top:0;right:0;">
+      <button id="installBtn" aria-label="Install App" style="display:none;background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;">⬇</button>
+      <button id="refreshBtn" aria-label="Refresh data" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.05rem;cursor:pointer;">🔄</button>
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:center; text-align:center;">
+      <img src="logo-header.png" alt="Logo" style="height:70px;width:auto;margin-bottom:8px;">
+      <h1>Profit & Loss Dashboard</h1>
+      <p>Combines Van Register + Driver Manager + Vehicle Expenses</p>
+      <div id="syncNote">Loading live data…</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="fee-toggle" id="rangeToggle">
+    <button class="fee-toggle-btn active" data-range="month" type="button">This Month</button>
+    <button class="fee-toggle-btn" data-range="year" type="button">This Year</button>
+    <button class="fee-toggle-btn" data-range="all" type="button">All Time</button>
+  </div>
+
+  <div class="profit-hero">
+    <div class="lbl">Net Profit</div>
+    <div class="num" id="profitNum">₹0</div>
+    <div class="sub" id="profitPeriodLabel"></div>
+  </div>
+
+  <div class="summary">
+    <div class="card income"><div class="num" id="incomeNum">₹0</div><div class="lbl">Income (Fees Collected)</div></div>
+    <div class="card expense"><div class="num" id="driverExpNum">₹0</div><div class="lbl">Driver Expense</div></div>
+    <div class="card expense"><div class="num" id="vehicleExpNum">₹0</div><div class="lbl">Vehicle Expense</div></div>
+  </div>
+
+  <div class="note-box">Profit = Income (fees collected) − Driver Salary Paid − Vehicle Expenses (fuel/repair/etc). Data updates automatically from your Van Register, Driver Manager and Vehicle Expense apps — nothing to enter here.</div>
+
+  <div class="section-title">Profit by Vehicle</div>
+  <div class="vtable" id="vehicleTable"></div>
+
+  <div style="margin-top:18px;">
+    <button class="btn" id="exportExcelBtn">⬇ Export Profit Report to Excel</button>
+  </div>
+
+</div>
+
+<div class="modal-bg" id="installModalBg">
+  <div class="modal">
+    <h3>Install App</h3>
+    <p style="font-size:0.88rem;color:var(--text);line-height:1.6;">
+      Is file ko is tarah Home Screen par add karein:<br><br>
+      <b>Android (Chrome):</b> Upar-right corner mein <b>⋮</b> (teen dot) menu par tap karein, phir <b>"Add to Home screen"</b> ya <b>"Install app"</b> choose karein.<br><br>
+      <b>iPhone (Safari):</b> Neeche Share icon <b>⬆</b> par tap karein, phir <b>"Add to Home Screen"</b> choose karein.<br><br>
+      <span style="color:var(--muted);font-size:0.82rem;">Note: File ko computer/download se seedhe khola gaya ho to automatic install prompt nahi aata — upar wala tareeka use karein.</span>
+    </p>
+    <div class="modal-actions">
+      <button class="btn" id="closeInstallBtn" type="button">Got it</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const FIREBASE_DB_URL = 'https://van-register-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+async function fetchKey(key){
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/${key}.json`);
+    if(!res.ok) throw new Error('fetch failed');
+    const data = await res.json();
+    if(data && data.value){
+      try{ localStorage.setItem('cache_'+key, data.value); }catch(e){}
+      return JSON.parse(data.value);
+    }
+  }catch(e){
+    console.log(`Could not load ${key} live, using cache if available:`, e);
+  }
+  try{
+    const cached = localStorage.getItem('cache_'+key);
+    if(cached) return JSON.parse(cached);
+  }catch(e){}
+  return null;
+}
+
+let vanState = null, driverState = null, expenseState = null;
+let rangeMode = 'month';
+
+async function loadAll(){
+  document.getElementById('syncNote').textContent = 'Loading live data…';
+  const [van, drv, exp] = await Promise.all([fetchKey('data'), fetchKey('driverData'), fetchKey('expenseData')]);
+  vanState = van || { students: [], vehicles: [], fees: {} };
+  driverState = drv || { drivers: [], vehicles: [], salary: {} };
+  expenseState = exp || { expenses: [] };
+  const now = new Date();
+  document.getElementById('syncNote').textContent = 'Synced ' + now.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+  render();
+}
+
+document.getElementById('refreshBtn').addEventListener('click', loadAll);
+
+// ---------- Vehicle name resolution ----------
+// Van Register & Driver Manager both store {id, name} vehicle lists; expenses
+// are stored by plain vehicle name. We key everything by NAME so all three
+// sources line up even though they don't share IDs.
+function vehicleNameMap(state){
+  const map = {};
+  (state.vehicles || []).forEach(v=>{ if(v && v.id) map[v.id] = v.name; });
+  return map;
+}
+
+function allVehicleNames(){
+  const names = new Set();
+  (vanState.vehicles||[]).forEach(v=> v && v.name && names.add(v.name));
+  (driverState.vehicles||[]).forEach(v=> v && v.name && names.add(v.name));
+  (expenseState.expenses||[]).forEach(e=> e && e.vehicle && names.add(e.vehicle));
+  return Array.from(names).sort();
+}
+
+// ---------- Date range ----------
+function getRange(){
+  const now = new Date();
+  if(rangeMode === 'month'){
+    return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59), label: now.toLocaleString('en-IN',{month:'long',year:'numeric'}) };
+  }
+  if(rangeMode === 'year'){
+    return { from: new Date(now.getFullYear(), 0, 1), to: new Date(now.getFullYear(), 11, 31, 23,59,59), label: String(now.getFullYear()) };
+  }
+  return { from: null, to: null, label: 'Since the beginning' };
+}
+function inRange(date, from, to){
+  if(from && date < from) return false;
+  if(to && date > to) return false;
+  return true;
+}
+
+// ---------- Income (Van Register fees) ----------
+// state.fees keys look like "<studentId>-<YYYY>-<MM>"; ids never contain
+// dashes, so splitting on '-' cleanly separates studentId / year / month.
+function incomeByVehicle(from, to){
+  const result = {};
+  const studentVehicle = {};
+  const idToName = vehicleNameMap(vanState);
+  (vanState.students||[]).forEach(s=>{ studentVehicle[s.id] = idToName[s.vehicleId] || 'Unassigned'; });
+
+  Object.entries(vanState.fees || {}).forEach(([key, rec])=>{
+    const parts = key.split('-');
+    if(parts.length < 3) return;
+    const mm = parts[parts.length-1], yyyy = parts[parts.length-2];
+    const studentId = parts.slice(0, parts.length-2).join('-');
+    const d = new Date(Number(yyyy), Number(mm)-1, 1);
+    if(!inRange(d, from, to)) return;
+    const vname = studentVehicle[studentId] || 'Unassigned';
+    result[vname] = (result[vname] || 0) + Number(rec.amountPaid || 0);
+  });
+  return result;
+}
+
+// ---------- Driver expense (Driver Manager salary paid) ----------
+// state.salary keys look like "<driverId>-<YYYY>-<MM>"; net amount paid that
+// month = driver's base salary minus the attendance deduction recorded then.
+function driverExpenseByVehicle(from, to){
+  const result = {};
+  const driverVehicle = {}, driverSalary = {};
+  const idToName = vehicleNameMap(driverState);
+  (driverState.drivers||[]).forEach(d=>{
+    driverVehicle[d.id] = idToName[d.vehicleId] || 'Unassigned';
+    driverSalary[d.id] = Number(d.salary || 0);
+  });
+
+  Object.entries(driverState.salary || {}).forEach(([key, rec])=>{
+    if(!rec || !rec.paid) return;
+    const parts = key.split('-');
+    if(parts.length < 3) return;
+    const mm = parts[parts.length-1], yyyy = parts[parts.length-2];
+    const driverId = parts.slice(0, parts.length-2).join('-');
+    const d = new Date(Number(yyyy), Number(mm)-1, 1);
+    if(!inRange(d, from, to)) return;
+    const vname = driverVehicle[driverId] || 'Unassigned';
+    const base = driverSalary[driverId] || 0;
+    const net = Math.max(0, base - Number(rec.attendanceDeducted || 0));
+    result[vname] = (result[vname] || 0) + net;
+  });
+  return result;
+}
+
+// ---------- Vehicle expense (fuel/repair/etc, stored by date) ----------
+function vehicleExpenseByVehicle(from, to){
+  const result = {};
+  (expenseState.expenses||[]).forEach(e=>{
+    if(!e.date) return;
+    const d = new Date(e.date);
+    if(!inRange(d, from, to)) return;
+    const vname = e.vehicle || 'Unassigned';
+    result[vname] = (result[vname] || 0) + Number(e.amount || 0);
+  });
+  return result;
+}
+
+function sumValues(obj){ return Object.values(obj).reduce((s,v)=>s+v, 0); }
+
+// ---------- Render ----------
+function render(){
+  const { from, to, label } = getRange();
+  const income = incomeByVehicle(from, to);
+  const driverExp = driverExpenseByVehicle(from, to);
+  const vehicleExp = vehicleExpenseByVehicle(from, to);
+
+  const totalIncome = sumValues(income);
+  const totalDriverExp = sumValues(driverExp);
+  const totalVehicleExp = sumValues(vehicleExp);
+  const netProfit = totalIncome - totalDriverExp - totalVehicleExp;
+
+  document.getElementById('incomeNum').textContent = '₹' + Math.round(totalIncome).toLocaleString('en-IN');
+  document.getElementById('driverExpNum').textContent = '₹' + Math.round(totalDriverExp).toLocaleString('en-IN');
+  document.getElementById('vehicleExpNum').textContent = '₹' + Math.round(totalVehicleExp).toLocaleString('en-IN');
+
+  const profitEl = document.getElementById('profitNum');
+  profitEl.textContent = (netProfit < 0 ? '-₹' : '₹') + Math.round(Math.abs(netProfit)).toLocaleString('en-IN');
+  profitEl.className = 'num ' + (netProfit >= 0 ? 'positive' : 'negative');
+  document.getElementById('profitPeriodLabel').textContent = label;
+
+  // Per-vehicle breakdown
+  const names = allVehicleNames();
+  const rows = names.map(name=>{
+    const inc = income[name] || 0;
+    const dExp = driverExp[name] || 0;
+    const vExp = vehicleExp[name] || 0;
+    const profit = inc - dExp - vExp;
+    return { name, inc, dExp, vExp, profit };
+  }).filter(r => r.inc || r.dExp || r.vExp)
+    .sort((a,b)=> b.profit - a.profit);
+
+  const tableEl = document.getElementById('vehicleTable');
+  if(rows.length === 0){
+    tableEl.innerHTML = '<div class="empty">No data found for this period yet.</div>';
+    return;
+  }
+  tableEl.innerHTML = rows.map(r=>{
+    const totalBar = r.inc + r.dExp + r.vExp || 1;
+    const incPct = Math.round((r.inc/totalBar)*100);
+    return `
+    <div class="vrow">
+      <div class="vrow-top">
+        <div class="vrow-name">${r.name}</div>
+        <div class="vrow-profit ${r.profit>=0?'positive':'negative'}">${r.profit<0?'-':''}₹${Math.round(Math.abs(r.profit)).toLocaleString('en-IN')}</div>
+      </div>
+      <div class="vrow-breakdown">
+        <span>Income: ₹${Math.round(r.inc).toLocaleString('en-IN')}</span>
+        <span>Driver: ₹${Math.round(r.dExp).toLocaleString('en-IN')}</span>
+        <span>Vehicle: ₹${Math.round(r.vExp).toLocaleString('en-IN')}</span>
+      </div>
+      <div class="vrow-bar"><div class="seg-income" style="width:${incPct}%"></div><div class="seg-expense" style="width:${100-incPct}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('rangeToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.fee-toggle-btn');
+  if(!btn) return;
+  rangeMode = btn.dataset.range;
+  document.querySelectorAll('#rangeToggle .fee-toggle-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+});
+
+document.getElementById('exportExcelBtn').addEventListener('click', ()=>{
+  if(typeof XLSX === 'undefined'){ alert('Excel library not loaded — check your internet connection'); return; }
+  const { from, to, label } = getRange();
+  const income = incomeByVehicle(from, to);
+  const driverExp = driverExpenseByVehicle(from, to);
+  const vehicleExp = vehicleExpenseByVehicle(from, to);
+  const names = allVehicleNames();
+  const rows = names.map(name=>{
+    const inc = income[name] || 0, dExp = driverExp[name] || 0, vExp = vehicleExp[name] || 0;
+    return {
+      'Vehicle': name,
+      'Income (₹)': Math.round(inc),
+      'Driver Expense (₹)': Math.round(dExp),
+      'Vehicle Expense (₹)': Math.round(vExp),
+      'Net Profit (₹)': Math.round(inc - dExp - vExp)
+    };
+  }).filter(r => r['Income (₹)'] || r['Driver Expense (₹)'] || r['Vehicle Expense (₹)']);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Profit by Vehicle');
+  XLSX.writeFile(wb, 'Profit_Report_' + label.replace(/\s+/g,'_') + '.xlsx');
+});
+
+loadAll();
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+// --- Add to Home Screen (PWA install) ---
+// Manifest and icons are static files (manifest.json, icon-192.png, icon-512.png)
+// using the firm's real logo, linked directly in <head>.
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(e=>console.log('Service worker registration failed:', e));
+}
+
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBtn').style.display = 'flex';
+  document.getElementById('installBtn').style.alignItems = 'center';
+  document.getElementById('installBtn').style.justifyContent = 'center';
+});
+
+window.addEventListener('appinstalled', ()=>{
+  document.getElementById('installBtn').style.display = 'none';
+  showToast('✅ App installed');
+});
+
+// Show the button anyway on browsers that never fire beforeinstallprompt (e.g. iOS Safari),
+// so users can still get manual instructions.
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+if(!isStandalone){
+  setTimeout(()=>{
+    if(document.getElementById('installBtn').style.display === 'none'){
+      document.getElementById('installBtn').style.display = 'flex';
+      document.getElementById('installBtn').style.alignItems = 'center';
+      document.getElementById('installBtn').style.justifyContent = 'center';
+    }
+  }, 800);
+}
+
+document.getElementById('installBtn').addEventListener('click', async ()=>{
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    if(choice.outcome === 'accepted'){ showToast('✅ Installing app'); }
+    deferredInstallPrompt = null;
+  } else {
+    document.getElementById('installModalBg').classList.add('show');
+  }
+});
+
+document.getElementById('closeInstallBtn').addEventListener('click', ()=>{
+  document.getElementById('installModalBg').classList.remove('show');
+});
+</script>
+</body>
+</html>
